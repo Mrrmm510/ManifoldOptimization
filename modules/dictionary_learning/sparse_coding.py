@@ -3,7 +3,6 @@ from cvxopt.solvers import qp
 import numpy as np
 from scipy.optimize import linprog
 from sklearn.linear_model import Lasso
-from tqdm import trange
 
 
 class ConstrainedLasso:
@@ -22,7 +21,6 @@ class ConstrainedLasso:
             G: np.ndarray = None,
             h: np.ndarray = None,
             rho: float = 1.0,
-            epsilon: float = 1e-4,
             tau: float = None,
             max_iter: int = 300,
             extended_output: bool = False
@@ -45,9 +43,6 @@ class ConstrainedLasso:
         rho : float, optional (default=1.0)
             Constant that multiplies the L1 term.
 
-        epsilon : float, optional (default=1e-4)
-            Constant that multiplies the small ridge penalty.
-
         tau : float, optional (default=None)
             Constant that used in augmented Lagrangian function.
 
@@ -57,8 +52,8 @@ class ConstrainedLasso:
         extended_output : bool, optional (default=False)
             If set to True, objective function value will be saved in `self.f`.
         """
-        if (A is None or b is None) and (C is None or d is None):
-            raise ValueError('Invalid input for __init__: (A, b) or (C, d) must not be None!')
+        if (A is None or b is None) and (G is None or h is None):
+            raise ValueError('Invalid input for __init__: (A, b) or (G, h) must not be None!')
 
         if A is None or b is None:
             self.A = None
@@ -77,7 +72,6 @@ class ConstrainedLasso:
             self.h = matrix(h)
 
         self.rho = rho
-        self.epsilon = epsilon
         self.tau = None if tau is None else tau
         self.max_iter = max_iter
         self.extended_output = extended_output
@@ -118,8 +112,12 @@ class ConstrainedLasso:
 
         # inequality constraint matrix and vector
         eye = np.eye(n_features)
-        A_ub = np.vstack((np.hstack((eye, -eye)), np.hstack((-eye, -eye))))
-        b_ub = np.zeros(n_features * 2)
+        A_ub = np.vstack((
+            np.hstack((eye, -eye)),
+            np.hstack((-eye, -eye)),
+            np.hstack((np.zeros((n_features, n_features)), -eye))
+        ))
+        b_ub = np.zeros(n_features * 3)
         if self.G is not None and self.h is not None:
             G = np.array(self.G)
             h = np.array(self.h).flatten()
@@ -171,10 +169,10 @@ class ConstrainedLasso:
         tau = np.sqrt(self.tau)
 
         # initialize constants
-        n_samples_inv = 1 / n_samples
         n_samples_sqrt = np.sqrt(n_samples)
-        Q = np.vstack((X, np.eye(n_features) * np.sqrt(self.epsilon), np.eye(n_features) * tau)) * n_samples_sqrt
-        p = np.hstack((y * n_samples_sqrt, np.zeros(n_features)))
+        Q = np.vstack((X, np.eye(n_features) * tau)) * n_samples_sqrt
+        p = y * n_samples_sqrt
+
         P = np.eye(n_features, dtype=np.float)
 
         # initialize variables
@@ -187,7 +185,7 @@ class ConstrainedLasso:
             self.f.append(0.5 * np.linalg.norm(y - X.dot(beta)) ** 2 + np.sum(np.abs(beta)) * self.rho)
 
         # main loop
-        for _ in trange(self.max_iter):
+        for _ in range(self.max_iter):
             w = np.hstack((p, (z - u) * tau * n_samples_sqrt))
             self.clf.fit(Q, w)
             beta = self.clf.coef_
