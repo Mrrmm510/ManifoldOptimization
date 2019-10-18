@@ -1,5 +1,3 @@
-from abc import ABCMeta, abstractmethod
-
 import numpy as np
 
 from ..gradient_descent import GradientDescent
