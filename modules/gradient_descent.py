@@ -3,7 +3,8 @@ from abc import ABCMeta, abstractmethod
 import numpy as np
 
 from .manifolds.real_space import RealSpace
-from .manifolds.sphere import Sphere
+from .manifolds.sphere import Sphere, Spheres
+from .manifolds.spd import SPD, SPDs
 
 
 class GradientDescent(metaclass=ABCMeta):
@@ -22,8 +23,14 @@ class GradientDescent(metaclass=ABCMeta):
 
         if manifold == 'sphere':
             self.manifold = Sphere()
+        if manifold == 'spheres':
+            self.manifold = Spheres()
         elif manifold == 'real':
             self.manifold = RealSpace()
+        elif manifold == 'spd':
+            self.manifold = SPD()
+        elif manifold == 'spds':
+            self.manifold = SPDs()
         else:
             print(f'Manifold {manifold} is not implemented! Use real space instead.')
             self.manifold = RealSpace()
@@ -43,7 +50,7 @@ class GradientDescent(metaclass=ABCMeta):
         Armijo condition
         """
         df = self._df(x)
-        g = np.dot(df, d)
+        g = self.manifold.inner_product(x, df, d)
         t = self.initial_step
         f = self._f(x)
         while self._f(self.manifold.retraction(x, t * d)) > f + self.armijo_param * t * g:
@@ -54,9 +61,12 @@ class GradientDescent(metaclass=ABCMeta):
                 break
         return t
 
+    def _initialize(self, x: np.ndarray) -> np.ndarray:
+        return np.copy(x)
+
     def optimize(self, x: np.ndarray):
         # initialize
-        res = np.copy(x)
+        res = self._initialize(x)
 
         # main loop
         for _ in range(self.max_iter):
