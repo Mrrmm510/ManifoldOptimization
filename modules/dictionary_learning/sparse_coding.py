@@ -80,6 +80,7 @@ class ConstrainedLasso:
         self.clf = Lasso(alpha=rho, fit_intercept=False)
 
         self.f = list()
+        self.coef_ = None
 
     def _linear_programming(self, n_features: int) -> np.ndarray:
         """
@@ -202,12 +203,48 @@ class ConstrainedLasso:
 
 class EqualityConstrainedL1QuadraticProgramming:
     """
-    Problem:
-        minimize 0.5 * βQβ + pβ + ρ||β||_1
-        subject to Aβ = b
+    Problem
+    ----------
+    minimize 0.5 * βQβ + pβ + ρ||β||_1
+    subject to Aβ = b
 
-    Algorithm:
-        Alternating Direction Method of Multipliers (ADMM)
+    Algorithm
+    ----------
+    Alternating Direction Method of Multipliers (ADMM)
+
+    Parameters
+    ----------
+    A : np.ndarray, optional (default=None)
+        The equality constraint matrix.
+
+    b : np.ndarray, optional (default=None)
+        The equality constraint vector.
+
+    rho : float, optional (default=1.0)
+        Constant that multiplies the L1 term.
+
+    tau : float, optional (default=None)
+        Constant that used in augmented Lagrangian function.
+
+    tol : float, optional (default=1e-4)
+        The tolerance for the optimization.
+
+    max_iter : int, optional (default=300)
+        The maximum number of iterations.
+
+    extended_output : bool, optional (default=False)
+        If set to True, objective function value will be saved in `self.f`.
+
+    Attributes
+    ----------
+    f : a list of float
+        objective function values.
+
+    coef_ : array, shape (n_features,) | (n_targets, n_features)
+        parameter vector.
+
+    n_iter_ : int | array-like, shape (n_targets,)
+        number of iterations run by admm to reach the specified tolerance.
     """
     def __init__(
             self,
@@ -215,46 +252,28 @@ class EqualityConstrainedL1QuadraticProgramming:
             b: np.ndarray,
             rho: float = 1.0,
             tau: float = 1.0,
+            tol: float = 1e-4,
             max_iter: int = 300,
             extended_output: bool = False
     ):
-        """
-        Parameters
-        ----------
-        A : np.ndarray, optional (default=None)
-            The equality constraint matrix.
-
-        b : np.ndarray, optional (default=None)
-            The equality constraint vector.
-
-        rho : float, optional (default=1.0)
-            Constant that multiplies the L1 term.
-
-        tau : float, optional (default=None)
-            Constant that used in augmented Lagrangian function.
-
-        max_iter : int, optional (default=300)
-            The maximum number of iterations.
-
-        extended_output : bool, optional (default=False)
-            If set to True, objective function value will be saved in `self.f`.
-        """
         self.A = A
         self.b = b
         self.rho = rho
         self.tau = tau
+        self.tol = tol
         self.max_iter = max_iter
         self.extended_output = extended_output
 
         self.f = list()
         self.coef_ = None
+        self.n_iter_ = None
 
     def _linear_programming(self, n_features: int) -> np.ndarray:
         """
         Solve following problem.
 
         Problem:
-            minimize ||β||_1 subject to Aβ=b, Gβ≤h
+            minimize ||β||_1 subject to Aβ=b
 
         Solver:
             scipy.optimize.linprog
@@ -265,7 +284,7 @@ class EqualityConstrainedL1QuadraticProgramming:
             The dimension of decision variables
 
         Returns
-        ----------
+        -------
         : np.ndarray, shape = (n_features, )
             The values of the decision variables that minimizes the objective function while satisfying the constraints.
         """
@@ -299,6 +318,12 @@ class EqualityConstrainedL1QuadraticProgramming:
         """
         return np.sign(x) * np.maximum((np.abs(x) - rho), 0)
 
+    def _objective_function(self, x: np.ndarray, Q: np.ndarray, p: np.ndarray, rho: float):
+        """
+        Return 1 / 2 * x^T Qx + p^T x + rho * ||x||_1
+        """
+        return 0.5 * x.dot(Q.dot(x)) + p.dot(x) + np.sum(np.abs(x)) * rho
+
     def fit(self, Q: np.ndarray, p: np.ndarray) -> None:
         """
         Parameters
@@ -318,32 +343,36 @@ class EqualityConstrainedL1QuadraticProgramming:
         Ab = self.A.T.dot(self.b)
         rho_tau = self.rho * tau_inv
 
-        P = np.eye(n_features, dtype=np.float)
-
         # initialize variables
         beta = self._linear_programming(n_features)
         z = np.copy(beta)
         u = np.zeros_like(self.b)
         v = np.zeros_like(beta)
 
+        cost = self._objective_function(beta, Q, p, self.rho)
         # save objective function value if necessary
         if self.extended_output:
-            self.f.append(0.5 * beta.dot(Q.dot(beta)) + p.dot(beta) + np.sum(np.abs(beta)) * self.rho)
+            self.f.append(cost)
 
         # main loop
-        for _ in range(self.max_iter):
+        for k in range(self.max_iter):
             r = - p_tau - self.A.T.dot(u) - v + Ab + z
             beta = np.dot(Q_inv, r)
             z = self._prox(beta + v, rho_tau)
             u = u + self.A.dot(beta) - self.b
             v = v + beta - z
 
+            pre_cost = cost
+            cost = self._objective_function(beta, Q, p, self.rho)
             # save objective function value if necessary
             if self.extended_output:
-                self.f.append(0.5 * beta.dot(Q.dot(beta)) + p.dot(beta) + np.sum(np.abs(beta)) * self.rho)
+                self.f.append(cost)
+            if np.abs(cost - pre_cost) < self.tol:
+                break
 
         # save result
         self.coef_ = z
+        self.n_iter_ = k
 
 
 class EqualityConstrainedLasso:
@@ -361,6 +390,7 @@ class EqualityConstrainedLasso:
             b: np.ndarray,
             rho: float = 1.0,
             tau: float = None,
+            tol: float = 1e-4,
             max_iter: int = 300,
             extended_output: bool = False
     ):
@@ -390,11 +420,13 @@ class EqualityConstrainedLasso:
             b=b,
             rho=rho,
             tau=tau,
+            tol=tol,
             max_iter=max_iter,
             extended_output=extended_output
         )
 
         self.f = list()
+        self.coef_ = None
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> None:
         """
