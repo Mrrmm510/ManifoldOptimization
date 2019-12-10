@@ -2,18 +2,19 @@ import cv2
 import numpy as np
 from tqdm import trange
 
-from ..manifolds.sphere import Spheres
 from ..gradient_descent import GradientDescent
 
 
 class TVonSphere(GradientDescent):
     """
-    Problem:
-        minimize ∑ d^2(u_i. f_i) + λ ∑_i ∑_j φ(d(u_i, u_j))
-        subject to u_i ∈ S^2
+    Problem
+    -------
+    minimize ∑ d^2(u_i. f_i) + λ ∑_i ∑_j φ(d(u_i, u_j))
+    subject to u_i ∈ S^2
 
-    Algorithm:
-        Gradient Descent
+    Algorithm
+    ---------
+    Gradient Descent
     """
     def __init__(
             self,
@@ -23,6 +24,7 @@ class TVonSphere(GradientDescent):
             armijo_param: float = 0.5,
             total_max_iter: int = 10,
             max_iter: int = 10,
+            tol: float = 1e-4,
             extended_output: bool = False
     ):
         """
@@ -46,6 +48,9 @@ class TVonSphere(GradientDescent):
         max_iter : int, optional (default=10)
             The maximum number of iterations of gradient descent.
 
+        tol : float, optional (default=1e-4)
+            The tolerance for the gradient descent.
+
         extended_output : bool, optional (default=False)
             If set to True, objective function value will be saved in `self.f`.
         """
@@ -54,6 +59,7 @@ class TVonSphere(GradientDescent):
             initial_step=initial_step,
             armijo_param=armijo_param,
             max_iter=max_iter,
+            tol=tol,
             extended_output=extended_output
         )
         self.c = c
@@ -61,6 +67,7 @@ class TVonSphere(GradientDescent):
         self.total_max_iter = total_max_iter
 
         self.mask = None
+        self.F = None
         self.V_horizontal_p = None
         self.V_horizontal_n = None
         self.V_vertical_p = None
@@ -91,7 +98,7 @@ class TVonSphere(GradientDescent):
         """
         return 1 / self._phi(T)
 
-    def _horizontal_distance(self, X: np.ndarray) -> np.ndarray:
+    def _horizontal_distance(self, X: np.ndarray) -> (np.ndarray, np.ndarray):
         """
         Distance of horizontally neighboring pixels.
 
@@ -115,7 +122,7 @@ class TVonSphere(GradientDescent):
         ret_n[:, 1:] = dist
         return ret_p, ret_n
 
-    def _vertical_distance(self, X: np.ndarray) -> np.ndarray:
+    def _vertical_distance(self, X: np.ndarray) -> (np.ndarray, np.ndarray):
         """
         Distance of vertically neighboring pixels.
 
@@ -139,7 +146,7 @@ class TVonSphere(GradientDescent):
         ret_n[1:] = dist
         return ret_p, ret_n
 
-    def _horizontal_log(self, X: np.ndarray) -> np.ndarray:
+    def _horizontal_log(self, X: np.ndarray) -> (np.ndarray, np.ndarray):
         """
         Logarithm map of horizontally neighboring pixels.
 
@@ -164,7 +171,7 @@ class TVonSphere(GradientDescent):
         ret_n[:, 1:] = log_n
         return ret_p, ret_n
 
-    def _vertical_log(self, X: np.ndarray) -> np.ndarray:
+    def _vertical_log(self, X: np.ndarray) -> (np.ndarray, np.ndarray):
         """
         Logarithm map of vertically neighboring pixels.
 
@@ -212,7 +219,7 @@ class TVonSphere(GradientDescent):
         horizontal_dist, _ = self._horizontal_distance(X)
         vertical_dist, _ = self._vertical_distance(X)
         tv = self.c * (
-            np.sum(horizontal_dist * horizontal_dist * self.V_horizontal_p)\
+            np.sum(horizontal_dist * horizontal_dist * self.V_horizontal_p)
             + np.sum(vertical_dist * vertical_dist * self.V_vertical_p)
         )
         return masked_dist + tv
@@ -238,7 +245,7 @@ class TVonSphere(GradientDescent):
         horizontal_log_p, horizontal_log_n = self._horizontal_log(X)
         vertical_log_p, vertical_log_n = self._vertical_log(X)
         d_tv = - 2 * self.c * (
-            self.V_horizontal_p * horizontal_log_p + self.V_vertical_p * vertical_log_p\
+            self.V_horizontal_p * horizontal_log_p + self.V_vertical_p * vertical_log_p
             + self.V_horizontal_n * horizontal_log_n + self.V_vertical_n * vertical_log_n
         )
         return d_dist + d_tv
@@ -264,8 +271,8 @@ class TVonSphere(GradientDescent):
         X = X.astype(np.float32) / 255.
         norm = np.linalg.norm(X, axis=-1, keepdims=True)
         # [0, 0, 0] -> [1, 1, 1] / sqrt(3)
-        X[norm[:,:,0] == 0] = np.array([1.,1.,1.], dtype=np.float32)
-        norm[norm==0] = np.sqrt(3)
+        X[norm[:, :, 0] == 0] = np.array([1., 1., 1.], dtype=np.float32)
+        norm[norm == 0] = np.sqrt(3)
         return X / norm
 
     def transform(self, F: np.ndarray, mask: np.ndarray = None) -> np.ndarray:
@@ -285,7 +292,7 @@ class TVonSphere(GradientDescent):
         """
         # F on sphere
         norm_F = np.linalg.norm(F, axis=-1, keepdims=True)
-        norm_F[norm_F==0] = 1.0
+        norm_F[norm_F == 0] = 1.0
         self.F = F.astype(np.float32) / norm_F
 
         self.mask = mask
