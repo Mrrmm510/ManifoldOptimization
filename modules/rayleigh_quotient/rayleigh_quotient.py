@@ -11,6 +11,7 @@ class RayleighQuotientGD(GradientDescent):
             initial_step: float = 1.0,
             armijo_param: float = 0.5,
             max_iter: int = 300,
+            tol: float = 1e-4,
             extended_output: bool = False
     ):
         super().__init__(
@@ -18,6 +19,7 @@ class RayleighQuotientGD(GradientDescent):
             initial_step=initial_step,
             armijo_param=armijo_param,
             max_iter=max_iter,
+            tol=tol,
             extended_output=extended_output
         )
         self.A = A
@@ -41,6 +43,7 @@ class RayleighQuotientSphereGD(GradientDescent):
             initial_step: float = 1.0,
             armijo_param: float = 0.5,
             max_iter: int = 300,
+            tol: float = 1e-4,
             extended_output: bool = False
     ):
         super().__init__(
@@ -48,13 +51,14 @@ class RayleighQuotientSphereGD(GradientDescent):
             initial_step=initial_step,
             armijo_param=armijo_param,
             max_iter=max_iter,
+            tol=tol,
             extended_output=extended_output
         )
         self.A = A
 
     def _f(self, x: np.ndarray) -> float:
         Ax = np.dot(self.A, x)
-        return np.dot(Ax, x)
+        return float(np.dot(Ax, x))
 
     def _df(self, x: np.ndarray) -> np.ndarray:
         Ax = np.dot(self.A, x)
@@ -69,6 +73,7 @@ class RayleighQuotientCG(ConjugateGradient):
             initial_step: float = 1.0,
             armijo_param: float = 0.5,
             max_iter: int = 300,
+            tol: float = 1e-4,
             extended_output: bool = False
     ):
         super().__init__(
@@ -76,6 +81,7 @@ class RayleighQuotientCG(ConjugateGradient):
             initial_step=initial_step,
             armijo_param=armijo_param,
             max_iter=max_iter,
+            tol=tol,
             extended_output=extended_output
         )
         self.A = A
@@ -99,6 +105,7 @@ class RayleighQuotientSphereCG(ConjugateGradient):
             initial_step: float = 1.0,
             armijo_param: float = 0.5,
             max_iter: int = 300,
+            tol: float = 1e-4,
             extended_output: bool = False
     ):
         super().__init__(
@@ -106,13 +113,14 @@ class RayleighQuotientSphereCG(ConjugateGradient):
             initial_step=initial_step,
             armijo_param=armijo_param,
             max_iter=max_iter,
+            tol=tol,
             extended_output=extended_output
         )
         self.A = A
 
     def _f(self, x: np.ndarray) -> float:
         Ax = np.dot(self.A, x)
-        return np.dot(Ax, x)
+        return float(np.dot(Ax, x))
 
     def _df(self, x: np.ndarray) -> np.ndarray:
         Ax = np.dot(self.A, x)
