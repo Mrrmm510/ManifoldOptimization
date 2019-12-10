@@ -9,6 +9,7 @@ Optimization on Riemannian manifolds
 
 * Rayleigh Quotient
 * Total Variation on 2D sphere
+* Dictionary Learning and Sparse Coding on SPD
 
 ## For developers
 
