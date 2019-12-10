@@ -28,7 +28,7 @@ class Spheres(Manifold):
         """
         Compute g_x(u, v)
         """
-        return np.sum(U * V)
+        return float(np.vdot(U, V))
 
     def distance(self, X: np.ndarray, Y: np.ndarray) -> np.ndarray:
         """
@@ -54,7 +54,7 @@ class Spheres(Manifold):
         dot = np.clip(np.sum(U * V, axis=-1, keepdims=True), -1, 1)
         vec = V - dot * U
         norm_vec = np.linalg.norm(vec, axis=-1, keepdims=True)
-        norm_vec[norm_vec==0] = 1.0
+        norm_vec[norm_vec == 0] = 1.0
         return vec / norm_vec * np.arccos(dot)
 
     def retraction(self, X: np.ndarray, V: np.ndarray) -> np.ndarray:

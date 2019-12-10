@@ -1,9 +1,10 @@
+from abc import ABCMeta
 import numpy as np
 
 from .gradient_descent import GradientDescent
 
 
-class ConjugateGradient(GradientDescent):
+class ConjugateGradient(GradientDescent, metaclass=ABCMeta):
     def __init__(
             self,
             manifold: str = 'sphere',

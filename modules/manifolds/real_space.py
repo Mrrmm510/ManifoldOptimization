@@ -5,7 +5,7 @@ from .manifold import Manifold
 
 class RealSpace(Manifold):
     def inner_product(self, x: np.ndarray, u: np.ndarray, v: np.ndarray) -> float:
-        return np.dot(u, v)
+        return float(np.dot(u, v))
 
     def retraction(self, x: np.ndarray, v: np.ndarray) -> np.ndarray:
         return x + v

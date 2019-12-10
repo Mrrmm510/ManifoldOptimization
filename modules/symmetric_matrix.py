@@ -1,5 +1,3 @@
-from typing import Tuple
-
 import numpy as np
 
 
@@ -18,7 +16,7 @@ def expm(A: np.ndarray, w: np.ndarray = None, v: np.ndarray = None) -> np.ndarra
     """
     if w is None or v is None:
         w, v = np.linalg.eig(A)
-    return v.dot(np.diag(np.exp(w)).dot(v.T))
+    return v.dot(np.diag(np.exp(w)).dot(np.linalg.inv(v)))
 
 
 def logm(A: np.ndarray, w: np.ndarray = None, v: np.ndarray = None) -> np.ndarray:
@@ -27,10 +25,18 @@ def logm(A: np.ndarray, w: np.ndarray = None, v: np.ndarray = None) -> np.ndarra
     """
     if w is None or v is None:
         w, v = np.linalg.eig(A)
-    return v.dot(np.diag(np.log(w)).dot(v.T))
+    return v.dot(np.diag(np.log(w)).dot(np.linalg.inv(v)))
 
 
-def triu_indices(n: int) -> Tuple[np.ndarray, np.ndarray]:
+def symm(A: np.ndarray) -> np.ndarray:
+    return 0.5 * (A + A.T)
+
+
+def symm_derivative(A: np.ndarray) -> np.ndarray:
+    return A + A.T - np.diag(np.diag(A))
+
+
+def triu_indices(n: int) -> (np.ndarray, np.ndarray):
     """
     Example:
         Parameters
@@ -41,8 +47,8 @@ def triu_indices(n: int) -> Tuple[np.ndarray, np.ndarray]:
         ----------
         : ([0, 1, 2, 0, 2, 0], [0, 1, 2, 1, 2, 2])
     """
-    return (np.hstack([np.arange(n)[:n - i] for i in range(n)]),
-            np.hstack([np.arange(n)[i:] for i in range(n)]))
+    return (np.hstack([list(range(n - i)) for i in range(n)]),
+            np.hstack([list(range(i, n)) for i in range(n)]))
 
 
 def mat2v(A: np.ndarray) -> np.ndarray:
