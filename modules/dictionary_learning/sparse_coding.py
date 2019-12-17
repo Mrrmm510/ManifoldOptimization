@@ -355,6 +355,7 @@ class EqualityConstrainedL1QuadraticProgramming:
             self.f.append(cost)
 
         # main loop
+        k = 0
         for k in range(self.max_iter):
             r = - p_tau - self.A.T.dot(u) - v + Ab + z
             beta = np.dot(Q_inv, r)
@@ -371,7 +372,7 @@ class EqualityConstrainedL1QuadraticProgramming:
                 break
 
         # save result
-        self.coef_ = z
+        self.coef_ = beta
         self.n_iter_ = k
 
 
