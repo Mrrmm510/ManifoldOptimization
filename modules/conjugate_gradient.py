@@ -23,13 +23,12 @@ class ConjugateGradient(GradientDescent, metaclass=ABCMeta):
             extended_output=extended_output
         )
 
-    @staticmethod
-    def _beta(df1: np.ndarray, df2: np.ndarray) -> float:
-        return np.dot(df2, df2) / np.dot(df1, df1)
+    def _beta(self, x1: np.ndarray, x2: np.ndarray, df1: np.ndarray, df2: np.ndarray) -> float:
+        return self.manifold.inner_product(x2, df2, df2) / self.manifold.inner_product(x1, df1, df1)
 
     def _d(self, x1: np.ndarray, x2: np.ndarray, d: np.ndarray, step_size: float) -> np.ndarray:
         df1, df2 = self._df(x1), self._df(x2)
-        return - df2 + self._beta(df1, df2) * self.manifold.vector_transport(x1, step_size * d, d)
+        return - df2 + self._beta(x1, x2, df1, df2) * self.manifold.vector_transport(x1, step_size * d, d)
 
     def optimize(self, x: np.ndarray):
         # initialize
