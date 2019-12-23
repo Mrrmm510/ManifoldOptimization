@@ -179,7 +179,7 @@ class AffineConstrainedSPDDLSC(GradientDescent):
         -------
         : float
         """
-        fi = Parallel(n_jobs=-1)(
+        fi = Parallel(n_jobs=-1, backend='multiprocessing')(
             [delayed(self._fi)(D, x_inv, w) for x_inv, w in zip(self.X_inv, self.W)]
         )
         return float(np.mean(fi))
@@ -199,7 +199,7 @@ class AffineConstrainedSPDDLSC(GradientDescent):
         """
         D_inv = np.array([np.linalg.inv(a) for a in D])
 
-        dfi = Parallel(n_jobs=-1)(
+        dfi = Parallel(n_jobs=-1, backend='multiprocessing')(
             [delayed(self._dfi)(D, D_inv, x_inv, w) for x_inv, w in zip(self.X_inv, self.W)]
         )
         return self.manifold.gradient(D, np.mean(dfi, axis=0))
@@ -240,7 +240,7 @@ class AffineConstrainedSPDDLSC(GradientDescent):
         -------
         : np.ndarray, shape = (n_samples, n_components)
         """
-        W = Parallel(n_jobs=-1)(
+        W = Parallel(n_jobs=-1, backend='multiprocessing')(
             [delayed(self._update_one_weight)(x_inv, D) for x_inv in X_inv]
         )
         # W = [self._update_one_weight(x_inv, D) for x_inv in X_inv]
@@ -333,3 +333,150 @@ class AffineConstrainedSPDDLSC(GradientDescent):
         """
         self.fit(X)
         return self.transform(X)
+
+
+class ApproximatedACSPDDLSC(AffineConstrainedSPDDLSC):
+    """
+    Problem
+    ----------
+    minimize_D,W ∑_i||∑_j w_ij (a_j - x_i)||_x_i^2 + λ||W||_1
+    subject to ∑_j w_ij = 1
+    where D = {a_1, ..., a_m}
+
+    Parameters
+    ----------
+    """
+    def __init__(
+            self,
+            n_components: int = 100,
+            max_iter: int = 300,
+            extended_output: bool = False,
+            eps: float = 1e-8,
+            initial_step: float = 1.0,
+            armijo_param: float = 1e-4,
+            max_iter_dl: int = 300,
+            rho: float = 1.0,
+            tau: float = 1.0,
+            tol: float = 1e-4,
+            max_iter_sp: int = 300
+    ):
+        super().__init__(
+            n_components=n_components,
+            max_iter=max_iter,
+            extended_output=extended_output,
+            eps=eps,
+            initial_step=initial_step,
+            armijo_param=armijo_param,
+            max_iter_dl=max_iter_dl,
+            rho=rho,
+            tau=tau,
+            tol=tol,
+            max_iter_sp=max_iter_sp
+        )
+        self.X_2inv = None
+
+    def _coef_matrix(self, x_inv: np.ndarray, D: np.ndarray) -> (np.ndarray, np.ndarray):
+        """
+        Coefficient matrix and vector.
+
+        Parameters
+        ----------
+        x_inv : np.ndarray, shape = (n_features, n_features)
+            Inverse data.
+
+        D : np.ndarray, shape = (n_components, n_features, n_features)
+            Atoms.
+
+        Returns
+        -------
+        coef_matrix : np.ndarray, shape = (n_components, n_components)
+
+        coef_vector : np.ndarray, shape = (n_components, )
+        """
+        n_features = x_inv.shape[0]
+        coef = D.dot(x_inv)
+        coef_vector = np.array([np.trace(c) for c in coef])
+        coef_matrix = np.sum(
+            np.tile(coef, (self.n_components, 1, 1)) *
+            np.tile(coef, (self.n_components, 1)).reshape(
+                (self.n_components * self.n_components, n_features, n_features)
+            ),
+            axis=(1, 2)).reshape(self.n_components, self.n_components)
+        return coef_matrix, coef_vector
+
+    def _update_one_weight(self, x_inv: np.ndarray, D: np.ndarray) -> np.ndarray:
+        """
+        Update a weight.
+
+        Parameters
+        ----------
+        x_inv : np.ndarray, shape = (n_features, n_features)
+            Inverse data.
+
+        D : np.ndarray, shape = (n_components, n_features, n_features)
+            Atoms.
+
+        Returns
+        -------
+        : np.ndarray, shape = (n_components, )
+        """
+        coef_matrix, coef_vector = self._coef_matrix(x_inv, D)
+        self.sparse_coder.fit(coef_matrix, -coef_vector)
+        return self.sparse_coder.coef_
+
+    def _fi(self, D: np.ndarray, x_inv: np.ndarray, w: np.ndarray) -> float:
+        """
+        Objective function for one data.
+
+        Parameters
+        ----------
+        D : np.ndarray, shape = (n_components, n_features, n_features)
+            Atoms.
+
+        x_inv : np.ndarray, shape = (n_features, n_features)
+            Inverse data.
+
+        w : np.ndarray, shape = (n_components, )
+            Weight.
+
+        Returns
+        -------
+        : float
+        """
+        coef_matrix, coef_vector = self._coef_matrix(x_inv, D)
+        return 0.5 * w.dot(coef_matrix.dot(w)) - coef_vector.dot(w) + self.n_components
+
+    def _df(self, D: np.ndarray) -> np.ndarray:
+        """
+        Gradient of objective function for one data.
+
+        Parameters
+        ----------
+        D : np.ndarray, shape = (n_components, n_features, n_features)
+            Atoms.
+
+        Returns
+        -------
+        : np.ndarray, shape = (n_components, n_features, n_features)
+        """
+        constant = self.X_inv.T.dot(self.W).T
+        summation = np.array([x_inv.dot(c) for x_inv, c in zip(self.X_2inv, D.T.dot(self.W.T).T)])
+        summation = summation.T.dot(self.W).T
+        df = np.array(list(map(symm_derivative, summation - constant)))
+        return self.manifold.gradient(D, df)
+
+    def _initialize_data(self, X: np.ndarray) -> None:
+        """
+        Compute arrays in advance.
+
+        Parameters
+        ----------
+        X : np.ndarray, shape = (n_samples, n_features, n_features)
+        Data.
+
+        Returns
+        -------
+        None
+        """
+        self.X_inv = np.array(list(map(np.linalg.inv, X)))
+        self.X_2inv = np.array(list(map(lambda x: np.dot(x, x), self.X_inv)))
