@@ -52,12 +52,11 @@ class GradientDescent(metaclass=ABCMeta):
     def _df(self, x: np.ndarray):
         raise NotImplementedError('The function _df is not implemented')
 
-    def _step_size(self, x: np.ndarray, d: np.ndarray) -> float:
+    def _step_size(self, x: np.ndarray, dx: np.ndarray, d: np.ndarray) -> float:
         """
         Armijo condition with back tracking
         """
-        df = self._df(x)
-        g = self.manifold.inner_product(x, df, d)
+        g = self.manifold.inner_product(x, dx, d)
         t = self.initial_step
         f = self._f(x)
         while self._f(self.manifold.retraction(x, t * d)) > f + self.armijo_param * t * g:
@@ -83,7 +82,7 @@ class GradientDescent(metaclass=ABCMeta):
         # main loop
         for _ in range(self.max_iter):
             d = - self._df(res)
-            step_size = self._step_size(res, d)
+            step_size = self._step_size(res, -d, d)
             # break when step_size == 0
             if step_size == 0:
                 break

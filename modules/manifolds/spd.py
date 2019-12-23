@@ -45,7 +45,7 @@ class SPD(Manifold):
         Compute g_x(u, v)
         """
         x_inv = np.linalg.inv(x)
-        return float(np.sum(u.dot(x_inv) * v.dot(x_inv)))
+        return float(np.vdot(u.dot(x_inv), v.dot(x_inv)))
 
     def gradient(self, x: np.ndarray, d: np.ndarray) -> np.ndarray:
         """
