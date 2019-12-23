@@ -37,7 +37,7 @@ class ConjugateGradient(GradientDescent, metaclass=ABCMeta):
 
         # main loop
         for _ in range(self.max_iter):
-            step_size = self._step_size(res, d)
+            step_size = self._step_size(res, self._df(res), d)
             # break when step_size == 0
             if step_size == 0:
                 break
