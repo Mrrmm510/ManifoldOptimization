@@ -448,3 +448,81 @@ class EqualityConstrainedLasso:
         self.clf.fit(X.T.dot(X), - X.T.dot(y))
         self.f = self.clf.f
         self.coef_ = self.clf.coef_
+
+
+class SumOneConstrainedL1QuadraticProgramming(EqualityConstrainedL1QuadraticProgramming):
+
+    """
+    Problem
+    ----------
+    minimize 0.5 * βQβ + pβ + ρ||β||_1
+    subject to ∑ß_j = 1
+
+    Algorithm
+    ----------
+    Alternating Direction Method of Multipliers (ADMM)
+
+    Parameters
+    ----------
+    n_features : int
+        The number of features.
+
+    rho : float, optional (default=1.0)
+        Constant that multiplies the L1 term.
+
+    tau : float, optional (default=None)
+        Constant that used in augmented Lagrangian function.
+
+    tol : float, optional (default=1e-4)
+        The tolerance for the optimization.
+
+    max_iter : int, optional (default=300)
+        The maximum number of iterations.
+
+    extended_output : bool, optional (default=False)
+        If set to True, objective function value will be saved in `self.f`.
+
+    Attributes
+    ----------
+    f : a list of float
+        objective function values.
+
+    coef_ : array, shape (n_features,) | (n_targets, n_features)
+        parameter vector.
+
+    n_iter_ : int | array-like, shape (n_targets,)
+        number of iterations run by admm to reach the specified tolerance.
+    """
+    def __init__(
+            self,
+            n_features: int,
+            rho: float = 1.0,
+            tau: float = 1.0,
+            tol: float = 1e-4,
+            max_iter: int = 300,
+            extended_output: bool = False
+    ):
+        super().__init__(
+            A=np.ones((1, n_features)),
+            b=np.array([1.]),
+            rho=rho,
+            tau=tau,
+            tol=tol,
+            max_iter=max_iter,
+            extended_output=extended_output
+        )
+
+    def _linear_programming(self, n_features: int) -> np.ndarray:
+        """
+        return [1 / n_features, ... , 1 / n_features].
+
+        Parameters
+        ----------
+        n_features : int
+            The dimension of decision variables
+
+        Returns
+        -------
+        : np.ndarray, shape = (n_features, )
+        """
+        return np.full(n_features, 1 / n_features)

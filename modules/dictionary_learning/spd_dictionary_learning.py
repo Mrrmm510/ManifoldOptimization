@@ -6,7 +6,7 @@ from joblib import Parallel, delayed
 
 
 from ..gradient_descent import GradientDescent
-from .sparse_coding import EqualityConstrainedL1QuadraticProgramming
+from .sparse_coding import SumOneConstrainedL1QuadraticProgramming
 from ..symmetric_matrix import logm, symm_derivative
 
 
@@ -61,7 +61,8 @@ class AffineConstrainedSPDDLSC(GradientDescent):
             rho: float = 1.0,
             tau: float = 1.0,
             tol: float = 1e-4,
-            max_iter_sp: int = 300
+            max_iter_sp: int = 300,
+            n_job: int = -1
     ):
         super().__init__(
             manifold='spds',
@@ -74,11 +75,11 @@ class AffineConstrainedSPDDLSC(GradientDescent):
         self.total_iter = max_iter
         self.extended_output_ = extended_output
         self.eps = eps
+        self.n_job = n_job
 
         # sparse coder
-        self.sparse_coder = EqualityConstrainedL1QuadraticProgramming(
-            A=np.ones((1, self.n_components)),
-            b=np.array([1.]),
+        self.sparse_coder = SumOneConstrainedL1QuadraticProgramming(
+            n_features=self.n_components,
             rho=rho,
             tau=tau,
             tol=tol,
@@ -179,9 +180,13 @@ class AffineConstrainedSPDDLSC(GradientDescent):
         -------
         : float
         """
-        fi = Parallel(n_jobs=-1, backend='multiprocessing')(
-            [delayed(self._fi)(D, x_inv, w) for x_inv, w in zip(self.X_inv, self.W)]
-        )
+        if self.n_job != 1:
+            fi = Parallel(n_jobs=self.n_job, backend='multiprocessing')(
+                [delayed(self._fi)(D, x_inv, w) for x_inv, w in zip(self.X_inv, self.W)]
+            )
+        else:
+            fi = [self._fi(D, x_inv, w) for x_inv, w in zip(self.X_inv, self.W)]
+
         return float(np.mean(fi))
 
     def _df(self, D: np.ndarray) -> np.ndarray:
@@ -199,9 +204,12 @@ class AffineConstrainedSPDDLSC(GradientDescent):
         """
         D_inv = np.array([np.linalg.inv(a) for a in D])
 
-        dfi = Parallel(n_jobs=-1, backend='multiprocessing')(
-            [delayed(self._dfi)(D, D_inv, x_inv, w) for x_inv, w in zip(self.X_inv, self.W)]
-        )
+        if self.n_job != 1:
+            dfi = Parallel(n_jobs=self.n_job, backend='multiprocessing')(
+                [delayed(self._dfi)(D, D_inv, x_inv, w) for x_inv, w in zip(self.X_inv, self.W)]
+            )
+        else:
+            dfi = [self._dfi(D, D_inv, x_inv, w) for x_inv, w in zip(self.X_inv, self.W)]
         return self.manifold.gradient(D, np.mean(dfi, axis=0))
 
     def _update_one_weight(self, x_inv: np.ndarray, D: np.ndarray) -> np.ndarray:
@@ -240,10 +248,12 @@ class AffineConstrainedSPDDLSC(GradientDescent):
         -------
         : np.ndarray, shape = (n_samples, n_components)
         """
-        W = Parallel(n_jobs=-1, backend='multiprocessing')(
-            [delayed(self._update_one_weight)(x_inv, D) for x_inv in X_inv]
-        )
-        # W = [self._update_one_weight(x_inv, D) for x_inv in X_inv]
+        if self.n_job != 1:
+            W = Parallel(n_jobs=-1, backend='multiprocessing')(
+                [delayed(self._update_one_weight)(x_inv, D) for x_inv in X_inv]
+            )
+        else:
+            W = [self._update_one_weight(x_inv, D) for x_inv in X_inv]
         return np.array(W)
 
     def _initialize_data(self, X: np.ndarray) -> None:
@@ -358,7 +368,8 @@ class ApproximatedACSPDDLSC(AffineConstrainedSPDDLSC):
             rho: float = 1.0,
             tau: float = 1.0,
             tol: float = 1e-4,
-            max_iter_sp: int = 300
+            max_iter_sp: int = 300,
+            n_job: int = -1
     ):
         super().__init__(
             n_components=n_components,
@@ -371,7 +382,8 @@ class ApproximatedACSPDDLSC(AffineConstrainedSPDDLSC):
             rho=rho,
             tau=tau,
             tol=tol,
-            max_iter_sp=max_iter_sp
+            max_iter_sp=max_iter_sp,
+            n_job=n_job
         )
         self.X_2inv = None
 
