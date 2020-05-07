@@ -3,7 +3,7 @@ from logging import getLogger, DEBUG
 
 import numpy as np
 
-from .manifolds.real_space import RealSpace
+from .manifolds.real_space import RealSpace, RealSpace2D
 from .manifolds.sphere import Sphere, Spheres
 from .manifolds.spd import SPD, SPDs
 
@@ -34,6 +34,8 @@ class GradientDescent(metaclass=ABCMeta):
             self.manifold = Spheres()
         elif manifold == 'real':
             self.manifold = RealSpace()
+        elif manifold == 'real2d':
+            self.manifold = RealSpace2D()
         elif manifold == 'spd':
             self.manifold = SPD()
         elif manifold == 'spds':
