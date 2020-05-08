@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.linalg import eigh
 
 from .manifold import Manifold
 from ..symmetric_matrix import expm, logm, symm, triu_indices, v2vec
@@ -35,10 +36,8 @@ class SPD(Manifold):
         """
         Compute distance from x to y
         """
-        x_inv = np.linalg.inv(x)
-        xy = np.dot(x_inv, y)
-        w, _ = np.linalg.eig(xy)
-        return float(np.sum(np.log(w)**2))
+        w = eigh(x, y, eigvals_only=True)
+        return float(np.linalg.norm(np.log(w)**2))
 
     def inner_product(self, x: np.ndarray, u: np.ndarray, v: np.ndarray) -> float:
         """
